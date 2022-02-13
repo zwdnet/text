@@ -1,0 +1,152 @@
+# 文本分析实操
+# 参考https://www.51cto.com/article/700850.html
+import pandas as pd
+import jieba
+import re
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+import os
+import sys
+import run
+from PIL import Image
+import numpy as np
+
+
+# 主函数
+# @run.change_dir
+def main():
+    # drawWordCloud(endyear = 2003)
+    combinePics()
+        
+        
+# 生成图云
+def drawWordCloud(fromyear = 1957, endyear = 2003):
+    for year in range(fromyear, endyear):
+        # 加载分词结果
+        outstr = loadText(year)
+        # 生成词云
+        wordcloud = WordCloud(font_path="./ST.ttf", collocations = False, max_words = 100, min_font_size=10, max_font_size=500).generate(" ".join(outstr))
+        wordcloud.to_file("./output/" + str(year) + '词云图.png')
+        
+       
+# 合并图片
+def combinePics(path = "./output"):
+    # 生成文件列表
+    filelist = []
+    for year in range(1957, 2003):
+        files = generateFileList(year = year, path = path)
+        for file in files:
+            filelist.append(file)
+    # print(filelist)
+    # 合并词云图
+    """
+    n = len(filelist)
+    toImage = Image.new('RGBA',(500*12,300*12))
+    for i in range(n):
+        fromImge = Image.open(filelist[i])
+        loc = (int(i%4)*500, (i/4)*300)
+        print(loc, filelist[i])
+        toImage.paste(fromImge, loc)
+        
+    toImage.save("merged.png")
+    """
+    img = ''
+    for i, file in enumerate(filelist):
+        if i == 0:
+            img = Image.open(file)
+            img_array = np.array(img)
+        else:
+            img_array2 = np.array(Image.open(file))
+            img_array = np.concatenate((img_array, img_array2), axis = 0)
+            img = Image.fromarray(img_array)
+            
+    img.save("merged.png")
+        
+    
+    
+# 创建停用词列表
+def stopWordsList():
+    wordlist = "./stopwords.txt"
+    stopwords = [line.strip() for line in open(wordlist, 'r', encoding='utf-8').readlines()]
+    return stopwords[0].strip()
+    
+   
+# 生成文件列表
+def generateFileList(year, path = "./paper"):
+    filelist = []
+    if os.path.exists(path):
+        for root, dirs, files in os.walk(path):
+            for one in files:
+                if one.find(str(year)) >= 0:
+                    filelist.append(os.path.join(root, one))
+        # print(len(filelist))
+    else:
+        print("无效目录")
+    
+    return filelist
+    
+    
+# 加载文本，进行分词
+def cutText(year):
+    print("正在处理", year, "年内容。加载文本内容，进行分词")
+    filelist = generateFileList(year)
+    n = len(filelist)
+    if n == 0:
+        return None
+
+    stopwords = stopWordsList()
+    outstr = []
+    for i in range(n):
+        print(year, "年数据加载进度:", float(i/n)*100, "%")
+        path = filelist[i]
+        with open(path, "r", encoding = "UTF-8") as file:
+            data = file.read()
+        # print(data)
+        str = re.sub('[^\w]', '', data)
+        # print(str)
+        text_cut = jieba.lcut(str)
+        # print(text_cut)
+    
+        for word in text_cut:
+            if word not in stopwords:
+                outstr.append(word)
+        # print("处理后分词结果", outstr)
+    
+    # 保存分词结果到文件
+    saveText(year, outstr)
+    del(outstr)
+    return
+    
+    
+# 将列表保存为文本文件
+# @run.change_dir
+def saveText(year, text):
+    path = "./cutwords/" + str(year) + ".txt"
+    with open(path, "w") as file:
+        for item in text:
+            file.write(item)
+            file.write(" ")
+            
+            
+# 从文件中加载分词结果
+# @run.change_dir
+def loadText(year):
+    path = "./cutwords/" + str(year) + ".txt"
+    with open(path, "r", encoding = "UTF-8") as file:
+        data = file.read()
+    outstr = data.strip(" ")
+    return outstr
+    
+    
+# 生成分词数据
+def generateData(fromyear = 1957, endyear = 2003):
+    for year in range(fromyear, endyear):
+        cutText(year)
+        # print("变量大小", sys.getsizeof(outstr)/(1024)**2, "MB")
+    
+
+if __name__ == "__main__":
+    # generateData(endyear = 1959)
+    main()
+    # filelist = generateFileList(1957)
+    
