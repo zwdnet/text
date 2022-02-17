@@ -10,22 +10,36 @@ import sys
 import run
 from PIL import Image
 import numpy as np
+from sklearn.feature_extraction.text import CountVectorizer
+import collections
+import bar_chart_race as bcr
+import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+from sklearn.metrics.pairwise import cosine_similarity
+
+from scipy.cluster.hierarchy import ward, dendrogram, linkage
 
 
 # 主函数
 # @run.change_dir
 def main():
-    # drawWordCloud(endyear = 2003)
+    drawWordCloud(endyear = 2003)
     combinePics()
+    # generateCipin(year = 1958)
+    # cipins = makeCipin(endyear = 1960)
+    # bcr.bar_chart_race(cipins, steps_per_period=30, period_length=1500, title="人民日报年度词频可视化", bar_size=0.8, fixed_max=10, n_bars=10)
+    # clusteText(endyear = 2003)
         
         
 # 生成图云
 def drawWordCloud(fromyear = 1957, endyear = 2003):
     for year in range(fromyear, endyear):
-        # 加载分词结果
-        outstr = loadText(year)
+        # 加载词频结果
+        cipin = generateCipin(year)
         # 生成词云
-        wordcloud = WordCloud(font_path="./ST.ttf", collocations = False, max_words = 100, min_font_size=10, max_font_size=500).generate(" ".join(outstr))
+        wordcloud = WordCloud(font_path="./simhei.ttf", collocations = False, max_words = 100, min_font_size=10, max_font_size=500, background_color="white")
+        wordcloud.generate_from_frequencies(cipin)
         wordcloud.to_file("./output/" + str(year) + '词云图.png')
         
        
@@ -143,6 +157,64 @@ def generateData(fromyear = 1957, endyear = 2003):
     for year in range(fromyear, endyear):
         cutText(year)
         # print("变量大小", sys.getsizeof(outstr)/(1024)**2, "MB")
+        
+        
+# 统计词频
+def generateCipin(year):
+    text = loadText(year)
+    text = text.split(" ")
+    word_counts = collections.Counter(text)
+    return word_counts
+    
+    
+# 生成词频数据集合
+def makeCipin(fromyear = 1957, endyear = 2003):
+    cipins = []
+    years = []
+    results = pd.DataFrame()
+    for year in range(fromyear, endyear):
+        years.append(year)
+        cipin = generateCipin(year)
+        cipins.append(cipin)
+        # print(year, cipin.keys, cipin.values, dict(cipin.most_common(100)))
+        results = results.append(dict(cipin.most_common(100)), ignore_index = True)
+        # print(results.head())
+        # input("按任意键继续")
+    #results = pd.DataFrame({"年度":years, "词频":cipins})
+    results["年度"] = years
+    results.set_index("年度", inplace = True)
+    print(results.info(), results.head())
+    return results
+    
+    
+# 文本聚类
+def clusteText(fromyear = 1957, endyear = 2003):
+    tfidf_vectorizer = TfidfVectorizer(use_idf=True, smooth_idf=True, norm=None, max_features=3000, max_df=0.99, min_df=0.1)
+    raw_str = []
+    for year in range(fromyear, endyear):
+        text = loadText(year)
+        raw_str.append(text)
+    # raw_str = raw_str.split(" ")
+    print(len(raw_str))
+    tfidf_matrix = tfidf_vectorizer.fit_transform(raw_str)
+    print(year, tfidf_matrix.shape)
+    # 计算文档相似性
+    dist = 1 - cosine_similarity(tfidf_matrix)
+    print("文档相似性", dist)
+    # 获得分类
+    linkage_matrix = linkage(dist, method='ward', metric='euclidean', optimal_ordering = False)
+    print(linkage_matrix)
+    # 可视化
+    plt.figure(figsize = (25, 10))
+    plt.title("人民日报全文聚类")
+    dendrogram(
+        linkage_matrix,
+        labels = [str(year) for year in range(fromyear, endyear)],
+        leaf_rotation=-70,
+        leaf_font_size=12
+    )
+    plt.savefig("./output/cluste.jpg")
+    plt.close()
     
 
 if __name__ == "__main__":
